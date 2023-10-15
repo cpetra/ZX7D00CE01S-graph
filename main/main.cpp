@@ -9,17 +9,26 @@
 #include "lvgl.h"
 #include "board.h"
 #include "esp_timer.h"
+#include "Arduino.h"
+#include "ui/ui.h"
+#include "main_arduino.cpp"
 #include "aw9523.h"
-
 #define TAG "MAIN"
+
+extern void app_loop();
+extern void app_setup();
 
 static void increase_lvgl_tick(void* arg) {
     lv_tick_inc(portTICK_PERIOD_MS);
 }
 
-extern void screen_init(void);
+extern "C" void screen_init(void);
 
-void lvgl_task(void* arg) {
+void setBoilerPrio(lv_event_t *e)
+{
+
+}
+extern "C" void lvgl_task(void* arg) {
     screen_init();
 
     // Tick interface for LVGL
@@ -31,8 +40,7 @@ void lvgl_task(void* arg) {
     esp_timer_create(&periodic_timer_args, &periodic_timer);
     esp_timer_start_periodic(periodic_timer, portTICK_PERIOD_MS * 1000);
 
-    extern void lv_demo_widgets(void);
-    lv_demo_widgets();
+    ui_init();
 
     for (;;) {
         lv_task_handler();
@@ -40,12 +48,14 @@ void lvgl_task(void* arg) {
     }
 }
 
-void app_main(void) {
-    /*
-     * init aw9523
-     */
+
+extern "C" void app_main(void) {
     aw9523_softreset();
     aw9523_init(TOUCH_IIC_SDA, TOUCH_IIC_SDA);
 
     xTaskCreatePinnedToCore(lvgl_task, NULL, 8 * 1024, NULL, 5, NULL, 1);
+    initArduino();
+    app_setup();
+    // never ending
+    app_loop();
 }

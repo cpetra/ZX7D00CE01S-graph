@@ -4,3 +4,4 @@ cmake_minimum_required(VERSION 3.5)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(ZX7D00CE01S)
+littlefs_create_partition_image(graphics data FLASH_IN_PROJECT)

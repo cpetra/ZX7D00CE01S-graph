@@ -14,7 +14,7 @@
 #ifndef   __I2S_LCD_DRIVER_H__
 #define   __I2S_LCD_DRIVER_H__
 
-#include "driver/i2s_std.h"
+#include "driver/i2s.h"
 
 #ifdef __cplusplus
 extern "C"

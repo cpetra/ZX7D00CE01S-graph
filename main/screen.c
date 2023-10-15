@@ -70,7 +70,9 @@ void qmsd_rgb_init(esp_lcd_rgb_panel_config_t *panel_config)
     ESP_ERROR_CHECK(esp_lcd_panel_init(g_panel_handle));
 
     buffer_size = panel_config->timings.h_res * panel_config->timings.v_res;
-    esp_lcd_rgb_panel_get_frame_buffer(g_panel_handle, 2, &buf1, &buf2);
+    buf1 = heap_caps_aligned_calloc(64, 1, buffer_size * sizeof(lv_color_t) * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    buf2 = heap_caps_aligned_calloc(64, 1, buffer_size * sizeof(lv_color_t) * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    //esp_lcd_rgb_panel_get_frame_buffer(g_panel_handle, 2, &buf1, &buf2);
     lv_disp_draw_buf_init(&draw_buf, buf1, buf2, buffer_size);
 
     lv_disp_drv_init(&disp_drv);
@@ -78,7 +80,7 @@ void qmsd_rgb_init(esp_lcd_rgb_panel_config_t *panel_config)
     disp_drv.draw_buf = &draw_buf;
     disp_drv.hor_res = panel_config->timings.h_res;
     disp_drv.ver_res = panel_config->timings.v_res;
-    disp_drv.full_refresh = 1;
+    disp_drv.full_refresh = 0;
 
     lv_disp_drv_register(&disp_drv);
 }
@@ -137,10 +139,10 @@ void screen_init(void)
             LCD_D15_GPIO,
         },
         .timings = {
-            .pclk_hz = 24000000,
+            .pclk_hz = 18000000,
             .h_res = 800,
             .v_res = 480,
-            .hsync_pulse_width = 10,
+            .hsync_pulse_width = 16,
             .hsync_back_porch = 40,
             .hsync_front_porch = 40,    // 890
             .vsync_pulse_width = 6,
@@ -148,9 +150,11 @@ void screen_init(void)
             .vsync_front_porch = 18,    // 535
         },
         .flags.fb_in_psram = 1,
-        .flags.double_fb = 1,
-        .flags.refresh_on_demand = 0,   // Mannually control refresh operation
-        .bounce_buffer_size_px = 16 * 800,
+        .flags.relax_on_idle = 0,
+        .flags.disp_active_low = 0,
+       // .flags.double_fb = 1,
+        //.flags.refresh_on_demand = 0,   // Mannually control refresh operation
+      //  .bounce_buffer_size_px = 16 * 800,
         .clk_src = LCD_CLK_SRC_PLL160M,
     };
 

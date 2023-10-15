@@ -439,13 +439,13 @@ i2s_lcd_handle_t i2s_lcd_driver_init(const i2s_lcd_config_t *config)
 
     if (config->pin_num_cs >= 0) {
         gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[config->pin_num_rs], PIN_FUNC_GPIO);
-        esp_rom_gpio_pad_select_gpio(config->pin_num_cs);
+        gpio_pad_select_gpio(config->pin_num_cs);
         gpio_set_direction(config->pin_num_cs, GPIO_MODE_OUTPUT);
         gpio_set_level(config->pin_num_cs, 0);
     }
 
     gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[config->pin_num_rs], PIN_FUNC_GPIO);
-    esp_rom_gpio_pad_select_gpio(config->pin_num_rs);
+    gpio_pad_select_gpio(config->pin_num_rs);
     gpio_set_direction(config->pin_num_rs, GPIO_MODE_OUTPUT);
     gpio_set_level(config->pin_num_rs, LCD_DATA_LEV);
     i2s_lcd_drv->rs_io_num = config->pin_num_rs;
