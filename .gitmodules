@@ -4,3 +4,6 @@
 [submodule "components/async-mqtt-client"]
 	path = components/async-mqtt-client
 	url = https://github.com/cpetra/async-mqtt-client.git
+[submodule "components/arduino"]
+	path = components/arduino
+	url = git@github.com:espressif/arduino-esp32.git
