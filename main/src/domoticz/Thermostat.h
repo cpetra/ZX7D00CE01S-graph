@@ -12,9 +12,7 @@ public:
     ~Thermostat() override;
     bool update(JsonObject obj) override;
     void get() override;
-
-private:
-    lv_obj_t *lv2_;
+    void setRange(float value, bool update); 
 };
 
 } // namespace devices

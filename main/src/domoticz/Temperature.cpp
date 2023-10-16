@@ -3,7 +3,7 @@
 namespace domoticz {
 namespace devices {
 
-Temperature::Temperature(uint32_t ID, String unit, lv_obj_t *lv) : Device(ID, unit, lv) {}
+Temperature::Temperature(uint32_t ID, String unit, lv_obj_t *lv) : Device(ID, unit, lv, NULL) {}
 Temperature::~Temperature() {}
 
 bool Temperature::update(JsonObject obj) 

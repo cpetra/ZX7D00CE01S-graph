@@ -1,0 +1,6 @@
+[submodule "components/ArduinoJson"]
+	path = components/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "components/async-mqtt-client"]
+	path = components/async-mqtt-client
+	url = https://github.com/cpetra/async-mqtt-client.git

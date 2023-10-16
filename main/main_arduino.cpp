@@ -1,11 +1,8 @@
-#include "ADC_ADS1115.h"
 #include "BattUtils.h"
-#include "DS18B20.h"
 #include "DomoticzUI.h"
 #include "ImageGetter.h"
 #include "Logger.h"
 #include "core/lv_obj.h"
-#include "powerMon.h"
 #include "ui/ui.h"
 #include "widgets/lv_label.h"
 #include <Arduino.h>
@@ -13,7 +10,7 @@
 #include <HTTPClient.h>
 #include <WebApp.h>
 #include "Thermostat.h"
-
+#include "DeviceFactory.h"
 using namespace domoticz::devices;
 
 #define LED_PIN    -1
@@ -84,9 +81,6 @@ String strJsonLog;
 DomoticzUI dui;
 ImageGetter img_getter;
 
-
-
-
 void onThermostatValueChanged(lv_event_t *e)
 {
     // Your code here
@@ -104,22 +98,6 @@ void onThermostatValueDone(lv_event_t *e)
     dui.setRangeValuebyObj(target, (float)value / 2, true);
 }
 
-void onSufrValueChanged(lv_event_t *e)
-{
-    // Your code here
-    lv_obj_t *target = lv_event_get_target(e);
-    int16_t value    = lv_arc_get_value(target);
-    dui.setRangeValuebyObj(target, (float)value / 2, false);
-}
-
-void onSufrValueChanged2(lv_event_t *e)
-{
-    // Your code here
-    lv_obj_t *target = lv_event_get_target(e);
-    int16_t value    = lv_arc_get_value(target);
-    // dui.setRangeValue(DOMOTICZ_ID_FL_SUFRAGERIE_SP, value);
-    dui.setRangeValuebyObj(target, (float)value / 2, true);
-}
 // #define DOMOTICZ_ID_SLEEP_DORM1 209
 // #define DOMOTICZ_ID_SLEEP_DORM2 210
 // #define DOMOTICZ_ID_SLEEP_SUFR  211
@@ -140,7 +118,7 @@ void onSufrValueChanged2(lv_event_t *e)
 // #define DOMOTICZ_ID_AWAY_SUFR  222
 // #define DOMOTICZ_ID_AWAY_BAIE  223
 
-const int thermostats_table[][4] = {
+const int thermo_settings_table[][4] = {
     {DOMOTICZ_ID_FL_SUFRAGERIE_SP, DOMOTICZ_ID_FL_DORM1_SP, DOMOTICZ_ID_FL_DORM2_SP, DOMOTICZ_ID_FL_BAIE_SP},
     {DOMOTICZ_ID_AWAY_SUFR,        DOMOTICZ_ID_AWAY_DORM1,  DOMOTICZ_ID_AWAY_DORM2,  DOMOTICZ_ID_AWAY_BAIE },
     {DOMOTICZ_ID_SLEEP_SUFR,       DOMOTICZ_ID_SLEEP_DORM1, DOMOTICZ_ID_SLEEP_DORM2, DOMOTICZ_ID_SLEEP_BAIE},
@@ -179,16 +157,16 @@ void setThermostats(int mode, bool update_now)
     static int old_mode = 0;
     static lv_color_t color[4];
 
-    if (mode >= sizeof(thermostats_table) / sizeof(thermostats_table[0])) {
+    if (mode >= sizeof(thermo_settings_table) / sizeof(thermo_settings_table[0])) {
         Logger::Error("Wrong mode ID");
         return;
     }
     if (mode != old_mode) {
         // remove old
-        dui.removeSensor(thermostats_table[old_mode][0]);
-        dui.removeSensor(thermostats_table[old_mode][1]);
-        dui.removeSensor(thermostats_table[old_mode][2]);
-        dui.removeSensor(thermostats_table[old_mode][3]);
+        dui.removeSensor(thermo_settings_table[old_mode][0]);
+        dui.removeSensor(thermo_settings_table[old_mode][1]);
+        dui.removeSensor(thermo_settings_table[old_mode][2]);
+        dui.removeSensor(thermo_settings_table[old_mode][3]);
         if (old_mode == 0) {
             color[0] = lv_obj_get_style_text_color(ui_TSetSufr, LV_PART_MAIN | LV_STATE_DEFAULT);
             color[1] = lv_obj_get_style_text_color(ui_TSetDorm1, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -208,16 +186,16 @@ void setThermostats(int mode, bool update_now)
             lv_obj_set_style_text_color(ui_TSetBaie, color[3], LV_PART_MAIN | LV_STATE_DEFAULT);
         }
     }
-    dui.addSensor(thermostats_table[mode][0], DomoticzSensor::TYPE_TEMPERATURE_SELECT, ui_TSetSufr, ui_TSufr, "", NULL);
-    dui.addSensor(thermostats_table[mode][1], DomoticzSensor::TYPE_TEMPERATURE_SELECT, ui_TSetDorm1, ui_TDorm1, "", NULL);
-    dui.addSensor(thermostats_table[mode][2], DomoticzSensor::TYPE_TEMPERATURE_SELECT, ui_TSetDorm2, ui_TDorm2, "", NULL);
-    dui.addSensor(thermostats_table[mode][3], DomoticzSensor::TYPE_TEMPERATURE_SELECT, ui_TSetBaie, ui_TBaie, "", NULL);
+    dui.addDevice(thermo_settings_table[mode][0], TYPE_THERMOSTAT, "", {ui_TSetSufr, ui_TSufr});
+    dui.addDevice(thermo_settings_table[mode][1], TYPE_THERMOSTAT, "", {ui_TSetDorm1, ui_TDorm1});
+    dui.addDevice(thermo_settings_table[mode][2], TYPE_THERMOSTAT, "", {ui_TSetDorm2, ui_TDorm2});
+    dui.addDevice(thermo_settings_table[mode][3], TYPE_THERMOSTAT, "", {ui_TSetBaie, ui_TBaie});
 
     if (update_now) {
-        dui.updateSensor(thermostats_table[mode][0]);
-        dui.updateSensor(thermostats_table[mode][1]);
-        dui.updateSensor(thermostats_table[mode][2]);
-        dui.updateSensor(thermostats_table[mode][3]);
+        dui.updateSensor(thermo_settings_table[mode][0]);
+        dui.updateSensor(thermo_settings_table[mode][1]);
+        dui.updateSensor(thermo_settings_table[mode][2]);
+        dui.updateSensor(thermo_settings_table[mode][3]);
     }
     old_mode = mode;
 }
@@ -285,19 +263,25 @@ void registerDomoticzSensors(void)
     img_getter.addImage(5, &ui_img_day_partial_cloud_png);
     // Needs to be created before all objects.
     dui.setImageGetter(&img_getter);
-    dui.addSensor(DOMOTICZ_ID_FL_SUFRAGERIE, DomoticzSensor::TYPE_TEMPERATURE, ui_TCrtSufr, "", NULL);
-    dui.addSensor(DOMOTICZ_ID_FL_DORM1, DomoticzSensor::TYPE_TEMPERATURE, ui_TCrtDorm1, "", NULL);
-    dui.addSensor(DOMOTICZ_ID_FL_DORM2, DomoticzSensor::TYPE_TEMPERATURE, ui_TCrtDorm2, "", NULL);
-    dui.addSensor(DOMOTICZ_ID_FL_BAIE, DomoticzSensor::TYPE_TEMPERATURE, ui_TCrtBaie, "", NULL);
-    dui.addSensor(DOMOTICZ_LYRIC_TEMP, DomoticzSensor::TYPE_TEMPERATURE, ui_TCrtThermostat, "", NULL);
-    dui.addSensor(DOMOTICZ_LYRIC_TEMP_SP, DomoticzSensor::TYPE_TEMPERATURE_SELECT, ui_TSetThermostat, ui_TThermostat, "", NULL);
 
-    dui.addSensor(DOMOTICZ_ID_FL_SUFRAGERIE, TYPE_TEMPERATURE, "", {ui_TCrtSufr});
+    dui.addDevice(DOMOTICZ_ID_FL_SUFRAGERIE, TYPE_TEMPERATURE, "", {ui_TCrtSufr});
+    dui.addDevice(DOMOTICZ_ID_FL_DORM1,      TYPE_TEMPERATURE, "", {ui_TCrtDorm1});
+    dui.addDevice(DOMOTICZ_ID_FL_DORM2,      TYPE_TEMPERATURE, "", {ui_TCrtDorm2});
+    dui.addDevice(DOMOTICZ_ID_FL_BAIE,       TYPE_TEMPERATURE, "", {ui_TCrtBaie});
+    dui.addDevice(DOMOTICZ_LYRIC_TEMP,       TYPE_TEMPERATURE, "", {ui_TCrtThermostat});
+    dui.addDevice(DOMOTICZ_LYRIC_TEMP_SP,    TYPE_THERMOSTAT, "", {ui_TSetThermostat, ui_TThermostat});
+
+    dui.addDevice(183,                       TYPE_SELECTOR, "", {ui_TCrtSufr}, 1);
+    dui.addDevice(207,                       TYPE_SELECTOR, "", {ui_TCrtDorm1}, 1);
+    dui.addDevice(167,                       TYPE_SELECTOR, "", {ui_TCrtDorm2}, 1);
+    dui.addDevice(195,                       TYPE_SELECTOR, "", {ui_TCrtBaie}, 1);
+
+    dui.addDevice(DOMOTICZ_ID_FL_SUFRAGERIE, TYPE_TEMPERATURE, "", {ui_TCrtSufr});
 
     dui.addWeather(&floresti_weather);
     dui.addWeather(&risca_weather);
  
-    dui.addSensor(208, DomoticzSensor::TYPE_SELECTOR, ui_Dropdown2, "", NULL);
+    dui.addDevice(208, TYPE_SELECTOR, "", {ui_Dropdown2});
 
     setThermostats(0);
 }

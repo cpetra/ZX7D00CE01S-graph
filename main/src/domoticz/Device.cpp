@@ -19,11 +19,12 @@ void Device::setLVText(lv_obj_t *l, const char *text, const char *unit)
     }
 }
 
-Device::Device(uint32_t ID, String unit, lv_obj_t* lv)
+Device::Device(uint32_t ID, String unit, lv_obj_t* lv, lv_obj_t* lv2)
 {
     ID_ = ID;
     lv_ = lv;
-    unit = unit;
+    lv2_ = lv2;
+    unit_ = unit;
     img_getter = NULL;
 }
 Device::~Device()
@@ -40,7 +41,15 @@ lv_obj_t *Device::getObj() const
 {
     return lv_;
 }
-
+void Device::setRange(float value, bool update)
+{
+    Logger::Error("setRange called on object not implementing the functionality");
+}
+void Device::getObjs(lv_obj_t **lv1, lv_obj_t **lv2) const
+{
+    *lv1 = lv_;
+    *lv2 = lv2_;       
+}
 
 }
 }

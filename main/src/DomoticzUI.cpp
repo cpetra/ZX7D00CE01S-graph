@@ -20,57 +20,33 @@ DomoticzUI::~DomoticzUI()
     devs_.clear();
 }
 
-void DomoticzUI::addSensor(uint32_t id, DomoticzSensor::DOMOTICZ_TYPE type, lv_obj_t *lv, String unit, lv_obj_t *graph)
-{
-    if (id == 0 || lv == NULL) {
-        Logger::Error("Failed to add sensors with id: " + String(id) + " and lv_obj_t : " + String((uint32_t)lv));
-        return;
-    }
-    DomoticzSensor sensor(id, type, lv, unit, graph);
-    std::lock_guard<std::mutex> lock(mtx);
-    map_.insert(std::make_pair(id, sensor));
-}
-
-void DomoticzUI::addSensor(uint32_t id, DomoticzSensor::DOMOTICZ_TYPE type, lv_obj_t *lv, lv_obj_t *lv2, String unit,
-                           lv_obj_t *graph)
-{
-    if (id == 0 || lv == NULL) {
-        Logger::Error("Failed to add sensors with id: " + String(id) + " and lv_obj_t : " + String((uint32_t)lv) +
-                      " and lv_obj_t2 : " + String((uint32_t)lv2));
-        return;
-    }
-    DomoticzSensor sensor(id, type, lv, lv2, unit, graph);
-    std::lock_guard<std::mutex> lock(mtx);
-
-    if (type == DomoticzSensor::TYPE_WEATHER) {
-        sensor.setImageGetter(img_getter);
-    }
-    map_.insert(std::make_pair(id, sensor));
-}
-
-void DomoticzUI::addSensor(Device *device)
+void DomoticzUI::addDevice(Device *device)
 {
     std::lock_guard<std::mutex> lock(mtx);
     devs_.insert(std::make_pair(device->getID(), device));
 }
 
-void DomoticzUI::addSensor(uint32_t id, DEVICE_TYPE type, String unit, const std::vector<lv_obj_t *>& vec)
+void DomoticzUI::addDevice(uint32_t id, DEVICE_TYPE type, String unit, const std::vector<lv_obj_t *>& vec)
 {
     Device *dev = DeviceFactory::create(id, type, unit, vec, img_getter);
-    addSensor(dev);
+    addDevice(dev);
+}
+
+void DomoticzUI::addDevice(uint32_t id, DEVICE_TYPE type, String unit, const std::vector<lv_obj_t *>& vec, uint32_t mode)
+{
+    Device *dev = DeviceFactory::create(id, type, unit, vec, img_getter, mode);
+    addDevice(dev);
 }
 
 void DomoticzUI::removeSensor(uint32_t id)
 {
     std::lock_guard<std::mutex> lock(mtx);
-    map_.erase(id);
+    auto it      = devs_.find(id);
+    delete it->second;
+    devs_.erase(id);
 }
 
-void DomoticzUI::removeAllSensors()
-{
-        std::lock_guard<std::mutex> lock(mtx);
-        map_.clear();
-}
+
 void DomoticzUI::setDayWindows()
 {
     static const String dayArr[] = {"Duminica", "Luni", "Marti", "Miercuri", "Joi", "Vineri", "Sambata", "Duminica"};
@@ -94,14 +70,14 @@ bool DomoticzUI::onMqttMesage(void *data, void *topic, void *payload)
     }
     std::lock_guard<std::mutex> lock(mtx);
     uint32_t idx = (uint32_t)doc["idx"].as<int>();
-    auto it      = map_.find(idx);
-    if (it != map_.end()) {
+    auto it      = devs_.find(idx);
+    if (it != devs_.end()) {
         Logger::Info("MQTT message from sensor " + String(idx) + " " + String((char *)topic));
         Logger::Verbose((const char *)payload);
 
-        DomoticzSensor &sensor = it->second;
+        Device *dev = it->second;
         JsonObject obj         = doc.as<JsonObject>();
-        if (!sensor.update(obj)) {
+        if (!dev->update(obj)) {
             Logger::Error("Cannot update obj");
             Logger::Error((char *)payload);
         }
@@ -112,7 +88,6 @@ bool DomoticzUI::onMqttMesage(void *data, void *topic, void *payload)
     }
     // Get day of week
     String current_date = doc["LastUpdate"];
-    Logger::Debug(current_date);
     if (current_date == "") {
         Logger::Error("Date receive error");
     }
@@ -124,42 +99,46 @@ bool DomoticzUI::onMqttMesage(void *data, void *topic, void *payload)
             setDayWindows();
         }
     }
-    Logger::Debug("Message handled for " + String(idx));
+    Logger::Verbose("Message handled for " + String(idx));
     return false;
 }
 
 void DomoticzUI::setRangeValue(uint32_t id, float value, bool update)
 {
-    auto it = map_.find(id);
-    if (it != map_.end()) {
-        DomoticzSensor &sensor = it->second;
-        sensor.setRangeValue(value, update);
+    auto it = devs_.find(id);
+    if (it != devs_.end()) {
+        Device *dev = it->second;
+        dev->setRange(value, update);
         return;
     }
 }
 
 void DomoticzUI::setRangeValuebyObj(lv_obj_t *obj, float value, bool update)
 {
-    auto it = map_.begin();
-    while (it != map_.end()) {
-        DomoticzSensor &sensor = it->second;
+    auto it = devs_.begin();
+    while (it != devs_.end()) {
+        Device *dev = it->second;
         lv_obj_t *lv, *lv2;
-        sensor.getLvObjs(&lv, &lv2);
+        dev->getObjs(&lv, &lv2);
         if (lv2 == obj) {
-            sensor.setRangeValue(value, update);
+            dev->setRange(value, update);
             return;
         }
-
         it++;
     }
 }
 bool DomoticzUI::updateSensor(uint32_t id)
 {
     std::lock_guard<std::mutex> lock(mtx);
-    auto it = map_.find(id);
-    if (it != map_.end()) {
-        DomoticzSensor &sensor = it->second;
-        sensor.get();
+    auto it = devs_.find(id);
+    if (it != devs_.end()) {
+        Device *dev = it->second;
+        if (dev != NULL) {
+            dev->get();
+        }
+        else {
+            Logger::Error("Updating null dev pointer!");
+        }
         return true;
     }
     return false;
@@ -169,9 +148,9 @@ bool DomoticzUI::updateAll()
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    for (auto &pair : map_) {
-        DomoticzSensor &sensor = pair.second;
-        sensor.get();
+    for (auto &pair : devs_) {
+        Device *dev = pair.second;
+        dev->get();
     }
     return true;
 }
@@ -181,17 +160,17 @@ bool DomoticzUI::addWeather(weather_config *w)
     if (w == NULL) {
         return false;
     }
-    addSensor(w->crt_t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->crt_t.t, "°C", NULL);
-    addSensor(w->day0.w.dmid, DomoticzSensor::TYPE_WEATHER, w->day0.w.t, w->day0.w.img, "", NULL);
-    addSensor(w->day0.t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->day0.t.t, "", NULL);
-    addSensor(w->day1.w.dmid, DomoticzSensor::TYPE_WEATHER, w->day1.w.t, w->day1.w.img, "", NULL);
-    addSensor(w->day1.t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->day1.t.t, "", NULL);
-    addSensor(w->day2.w.dmid, DomoticzSensor::TYPE_WEATHER, w->day2.w.t, w->day2.w.img, "", NULL);
-    addSensor(w->day2.t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->day2.t.t, "", NULL);
-    addSensor(w->day3.w.dmid, DomoticzSensor::TYPE_WEATHER, w->day3.w.t, w->day3.w.img, "", NULL);
-    addSensor(w->day3.t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->day3.t.t, "", NULL);
-    addSensor(w->day4.w.dmid, DomoticzSensor::TYPE_WEATHER, w->day4.w.t, w->day4.w.img, "", NULL);
-    addSensor(w->day4.t.dmid, DomoticzSensor::TYPE_TEMPERATURE, w->day4.t.t, "", NULL);
+    addDevice(w->crt_t.dmid, TYPE_TEMPERATURE, "°C", {w->crt_t.t});
+    addDevice(w->day0.w.dmid, TYPE_WEATHER, "", {w->day0.w.t, w->day0.w.img});
+    addDevice(w->day0.t.dmid, TYPE_TEMPERATURE, "", {w->day0.t.t});
+    addDevice(w->day1.w.dmid, TYPE_WEATHER, "", {w->day1.w.t, w->day1.w.img});
+    addDevice(w->day1.t.dmid, TYPE_TEMPERATURE, "",  {w->day1.t.t});
+    addDevice(w->day2.w.dmid, TYPE_WEATHER, "", {w->day2.w.t, w->day2.w.img});
+    addDevice(w->day2.t.dmid, TYPE_TEMPERATURE, "", {w->day2.t.t});
+    addDevice(w->day3.w.dmid, TYPE_WEATHER, "", {w->day3.w.t, w->day3.w.img});
+    addDevice(w->day3.t.dmid, TYPE_TEMPERATURE, "", {w->day3.t.t});
+    addDevice(w->day4.w.dmid, TYPE_WEATHER, "", {w->day4.w.t, w->day4.w.img});
+    addDevice(w->day4.t.dmid, TYPE_TEMPERATURE, "", {w->day4.t.t});
     for (int i = 0; i < 5; i++) {
         img_days[i].push_back(w->day_arr[i]);
     }

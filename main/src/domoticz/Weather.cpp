@@ -5,7 +5,7 @@
 namespace domoticz {
 namespace devices {
 
-Weather::Weather(uint32_t ID, String unit, lv_obj_t *lv, lv_obj_t *lv2) : Device(ID, unit, lv) { lv2_ = lv2; }
+Weather::Weather(uint32_t ID, String unit, lv_obj_t *lv, lv_obj_t *lv2) : Device(ID, unit, lv, lv2) {}
 
 Weather::~Weather() {}
 
@@ -37,23 +37,15 @@ bool Weather::update(JsonObject obj)
 
 void Weather::get()
 {
-    String value = WADomoticzGetSetPoint(ID_);
-    setLVText(lv_, value.c_str(), unit_.c_str());
-    if (lv2_ != NULL) {
-
-        float fval = value.toFloat();
-        uint32_t v = (int)fval * 2;
-        int16_t vmin, vmax;
-        vmin = lv_arc_get_min_value(lv2_);
-        vmax = lv_arc_get_max_value(lv2_);
-        if (v < vmin) {
-            v = vmin;
+    String weather, temperature;
+    if (WADomoticzGetWeatherAndTemperature(ID_, weather, temperature)) {
+        setLVText(lv_, temperature.c_str(), unit_.c_str());
+        if (img_getter != NULL) {
+            const lv_img_dsc_t *img = img_getter->getImage(weather.toInt());
+            if (img != NULL && lv2_ != NULL) {
+                lv_img_set_src(lv2_, img);
+            }
         }
-        if (v > vmax) {
-            v = vmax;
-        }
-
-        lv_arc_set_value(lv2_, v);
     }
 }
 

@@ -9,7 +9,7 @@
 DeviceFactory::DeviceFactory() {}
 
 DeviceFactory::~DeviceFactory() {}
-Device *DeviceFactory::create(uint32_t id, DEVICE_TYPE type, String unit, const std::vector<lv_obj_t *>& lv, ImageGetter *img_getter)
+Device *DeviceFactory::create(uint32_t id, DEVICE_TYPE type, String unit, const std::vector<lv_obj_t *>& lv, ImageGetter *img_getter, uint32_t mode)
 {
     Device *dev = NULL;
     if (lv.size() < 1) {
@@ -26,10 +26,12 @@ Device *DeviceFactory::create(uint32_t id, DEVICE_TYPE type, String unit, const 
             Logger::Error("Device Factory Error: Thermostat type needs two lv_obj_t *");
             return NULL;
         }
+        Logger::Debug("ptr2: " + String((uint32_t)lv[1]));
+
         dev = new Thermostat(id, unit, lv[0], lv[1]);
         break;
     case TYPE_SELECTOR:
-        dev = new Selector(id, unit, lv[0]);
+        dev = new Selector(id, unit, lv[0], mode);
         break;
     case TYPE_WEATHER:
         dev = new Weather(id, unit, lv[0], lv[1]);

@@ -34,7 +34,10 @@ extern "C" void lvgl_task(void* arg) {
     // Tick interface for LVGL
     const esp_timer_create_args_t periodic_timer_args = {
         .callback = increase_lvgl_tick,
-        .name = "periodic_gui"
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "periodic_gui",
+        .skip_unhandled_events = false
     };
     esp_timer_handle_t periodic_timer;
     esp_timer_create(&periodic_timer_args, &periodic_timer);
